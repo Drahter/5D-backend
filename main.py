@@ -1,7 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from starlette.responses import RedirectResponse
-import hashlib
 
 from contextlib import asynccontextmanager
 
@@ -19,7 +18,6 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
-# Определение модели для получения URL
 class UrlRequest(BaseModel):
     url: str
 
@@ -27,24 +25,28 @@ class UrlRequest(BaseModel):
 @app.post("/", status_code=201)
 async def shorten_url(url_request: UrlRequest):
     original_url = url_request.url
-    # Генерация уникального идентификатора
-    shorten_url_id = hashlib.md5(original_url.encode()).hexdigest()[:6]
+
+    short_url = original_url.split("//")[-1].replace("/", "_")[:10]
 
     async with new_session() as session:
-        new_url = UrlTable(full_url=original_url, shorten_url=shorten_url_id)
+        new_url = UrlTable(full_url=original_url, shorten_url=short_url)
         session.add(new_url)
 
         await session.flush()
         await session.commit()
-        print(new_url.id)
-    return {"shortened_url": f"http://127.0.0.1:8080/{shorten_url_id}"}
+
+    return {
+        "shorten_url": new_url.shorten_url,
+        "redirect": f"http://127.0.0.1:8000/{new_url.id}"
+    }
 
 
-@app.get("/{shorten_url_id}/")
-async def get_original_url(shorten_url_id: str):
+@app.get("/{url_id}")
+async def get_original_url(url_id: int):
     async with new_session() as session:
-        result = await session.get(UrlTable, shorten_url_id)
+        async with session.begin():
+            result = await session.get(UrlTable, url_id)
 
-        if result:
-            return {"full_url": result.full_url}
-        raise HTTPException(status_code=404, detail="URL not found")
+            if result:
+                return RedirectResponse(url=result.full_url, status_code=307)
+            raise HTTPException(status_code=404, detail="URL not found")
