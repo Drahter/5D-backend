@@ -5,7 +5,7 @@ App by POST method gets a URL, creates a shorter version and adds it both varian
 Then via GET method by ID returns full URL and redirects to it.
 
 - [x] Base functions
-- [ ] Adding routers and separating functions from main file
+- [x] Adding routers and separating functions from main file
 - [ ] Tests
 
 
